@@ -16,14 +16,25 @@ OPENAPI_URL = "https://heal.renci.org/search-api/openapi.json"
 BASE_URL = "https://heal.renci.org/search-api"
 
 def create_mcp():
-    # Use AsyncClient even in sync code — FastMCP handles it correctly
-    client = httpx.AsyncClient(base_url=BASE_URL)
+    """Create FastMCP server from HEAL OpenAPI spec.
 
-    # Fetch spec synchronously (FastMCP will await internally as needed)
-    import asyncio
-    response = asyncio.run(client.get(OPENAPI_URL))
-    spec = response.json()
+    Fetches the spec synchronously and creates the MCP server.
+    The client will be created lazily when mcp.run() starts its event loop.
+    """
+    # Fetch the OpenAPI spec synchronously
+    with httpx.Client() as sync_client:
+        response = sync_client.get(OPENAPI_URL)
+        response.raise_for_status()
+        spec = response.json()
 
+    # Create async client - this will be used when mcp.run() starts its event loop
+    # The key is that we're not doing any async operations with it yet
+    client = httpx.AsyncClient(
+        base_url=BASE_URL,
+        timeout=30.0  # Add timeout to be safe
+    )
+
+    # Create MCP server from OpenAPI spec
     mcp = FastMCP.from_openapi(
         openapi_spec=spec,
         client=client,
@@ -33,7 +44,9 @@ def create_mcp():
 
 if __name__ == "__main__":
     mcp = create_mcp()
-    mcp.run()  # Let FastMCP control asyncio itself
+    # Run with HTTP transport for web-based clients
+    # Bind to 0.0.0.0 to allow external connections (e.g., from host machine)
+    mcp.run(transport="http", host="0.0.0.0", port=8080, path="/mcp")
 
 # async def create_mcp():
 #     # Async HTTP client with base_url
