@@ -1,0 +1,55 @@
+# MCP server — internal ClusterIP service only (not exposed externally).
+# The chat server (or any MCP-aware client inside the cluster) can reach it at:
+#   http://mcp-server.heal-ai.svc.cluster.local:8080/mcp
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-server
+  labels:
+    app: mcp-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-server
+  template:
+    metadata:
+      labels:
+        app: mcp-server
+    spec:
+      containers:
+        - name: mcp-server
+          # Replace with your registry, e.g. quay.io/renci/heal-ai-bot:latest
+          image: docker.io/hsrenci/heal-ai-bot:latest
+          command: ["python", "src/heal_mcp_server.py"]
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-server
+spec:
+  selector:
+    app: mcp-server
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP

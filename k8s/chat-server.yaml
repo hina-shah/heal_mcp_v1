@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-server
+  labels:
+    app: chat-server
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: chat-server
+  template:
+    metadata:
+      labels:
+        app: chat-server
+    spec:
+      containers:
+        - name: chat-server
+          # Replace with your registry, e.g. quay.io/renci/heal-ai-bot:latest
+          image: docker.io/hsrenci/heal-ai-bot:latest
+          command: ["python", "src/chat_server.py"]
+          ports:
+            - containerPort: 8081
+          env:
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: heal-ai-secrets
+                  key: ANTHROPIC_API_KEY
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8081
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chat-server
+spec:
+  selector:
+    app: chat-server
+  ports:
+    - port: 8081
+      targetPort: 8081
+  type: ClusterIP

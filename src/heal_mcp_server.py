@@ -1,39 +1,76 @@
 #!/usr/bin/env python3
-"""Minimal FastMCP server that exposes the HEAL Search API via OpenAPI.
 
-This file uses FastMCP's OpenAPI loader to create an MCP server from the
-published HEAL OpenAPI spec at https://heal.renci.org/search-api/openapi.json.
-
-Run with: python -m src.heal_mcp_server
-Or: fastmcp run src/heal_mcp_server.py
-"""
+import logging
 import httpx
 from fastmcp import FastMCP
 import asyncio
-import logging
 
-OPENAPI_URL = "https://heal.renci.org/search-api/openapi.json"
-BASE_URL = "https://heal.renci.org/search-api"
+OPENAPI_URL = "https://heal-dev.apps.renci.org/search-api/openapi.json"
+BASE_URL    = "https://heal-dev.apps.renci.org/search-api"
 
-def create_mcp():
-    # Use AsyncClient even in sync code — FastMCP handles it correctly
-    client = httpx.AsyncClient(base_url=BASE_URL)
-
-    # Fetch spec synchronously (FastMCP will await internally as needed)
-    import asyncio
-    response = asyncio.run(client.get(OPENAPI_URL))
-    spec = response.json()
+async def create_mcp():
+    client = httpx.AsyncClient(base_url=BASE_URL, timeout=30.0)
+    response = await client.get(OPENAPI_URL)
+    response.raise_for_status()
+    spec_json = response.json()
 
     mcp = FastMCP.from_openapi(
-        openapi_spec=spec,
+        openapi_spec=spec_json,
         client=client,
-        name="heal-search-mcp"
+        name="heal-search-mcp",
     )
-    return mcp
+    return mcp, client
+
+async def main():
+    logging.basicConfig(level=logging.INFO)
+    mcp, client = await create_mcp()
+    try:
+        await mcp.run_async(transport="streamable-http", host="0.0.0.0", port=8080, path="/mcp")
+    finally:
+        await client.aclose()
 
 if __name__ == "__main__":
-    mcp = create_mcp()
-    mcp.run()  # Let FastMCP control asyncio itself
+    asyncio.run(main())
+
+# """Minimal FastMCP server that exposes the HEAL Search API via OpenAPI.
+
+# This file uses FastMCP's OpenAPI loader to create an MCP server from the
+# published HEAL OpenAPI spec at https://heal.renci.org/search-api/openapi.json.
+
+# Run with: python -m src.heal_mcp_server
+# Or: fastmcp run src/heal_mcp_server.py
+# """
+# import logging
+# import httpx
+# from fastmcp import FastMCP
+# import atexit
+
+# OPENAPI_URL = "https://heal.renci.org/search-api/openapi.json"
+# BASE_URL    = "https://heal.renci.org/search-api"
+
+# def create_mcp():
+#     # Use a synchronous client so we don't bind anything to a closed asyncio loop
+#     client = httpx.Client(base_url=BASE_URL, timeout=30.0)
+#     atexit.register(client.close)
+
+#     spec = client.get(OPENAPI_URL)
+#     spec.raise_for_status()
+#     spec_json = spec.json()
+
+#     mcp = FastMCP.from_openapi(
+#         openapi_spec=spec_json,
+#         client=client,          # safe: sync client, no event-loop coupling
+#         name="heal-search-mcp",
+#     )
+#     return mcp
+
+# if __name__ == "__main__":
+#     logging.basicConfig(level=logging.INFO)
+#     mcp = create_mcp()
+#     mcp.run()  # FastMCP controls asyncio internally
+
+# mcp = create_mcp()
+# mcp.run_async()  # Let FastMCP control asyncio itself
 
 # async def create_mcp():
 #     # Async HTTP client with base_url

@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: chat-server
+  annotations:
+    # Required for SSE streaming — disable buffering and extend timeouts
+    cert-manager.io/cluster-issuer: letsencrypt
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: heal-ai-bot.apps.renci.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: chat-server
+                port:
+                  number: 8081
+  tls:
+    - hosts:
+        - heal-ai-bot.apps.renci.org
+      secretName: heal-ai-tls

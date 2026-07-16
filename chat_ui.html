@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HEAL AI Research Assistant</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f0f4f9;
+      color: #1a1a2e;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #0d2b4e 0%, #1a3a5c 100%);
+      color: white;
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      flex-shrink: 0;
+    }
+    .header-icon {
+      width: 40px; height: 40px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem;
+    }
+    .header-text h1 { font-size: 1.15rem; font-weight: 700; letter-spacing: 0.01em; }
+    .header-text p  { font-size: 0.78rem; opacity: 0.65; margin-top: 1px; }
+    .header-badge {
+      margin-left: auto;
+      font-size: 0.72rem;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 20px;
+      padding: 4px 12px;
+      opacity: 0.85;
+    }
+
+    /* ── Example chips ── */
+    .examples-bar {
+      background: white;
+      padding: 10px 20px;
+      border-bottom: 1px solid #dce4ef;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .examples-label { font-size: 0.75rem; color: #888; white-space: nowrap; }
+    .chip {
+      font-size: 0.78rem;
+      background: #eef3fb;
+      border: 1px solid #c5d5ed;
+      border-radius: 20px;
+      padding: 5px 14px;
+      cursor: pointer;
+      color: #1a3a5c;
+      transition: background 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .chip:hover { background: #d5e5f8; border-color: #8eb5e0; }
+
+    /* ── Chat area ── */
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Welcome message */
+    .welcome {
+      text-align: center;
+      padding: 48px 20px 20px;
+      color: #666;
+    }
+    .welcome .icon { font-size: 2.8rem; margin-bottom: 12px; }
+    .welcome h2 { font-size: 1.1rem; color: #1a3a5c; margin-bottom: 6px; }
+    .welcome p  { font-size: 0.88rem; max-width: 480px; margin: 0 auto; line-height: 1.6; }
+
+    /* Message rows */
+    .msg-row {
+      display: flex;
+      gap: 10px;
+      max-width: 820px;
+      width: 100%;
+    }
+    .msg-row.user  { margin-left: auto; flex-direction: row-reverse; }
+    .msg-row.assistant { margin-right: auto; }
+
+    .avatar {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem;
+      margin-top: 2px;
+    }
+    .msg-row.user .avatar      { background: #1a3a5c; color: white; }
+    .msg-row.assistant .avatar { background: #e8f0fb; color: #1a3a5c; }
+
+    .bubble {
+      padding: 12px 16px;
+      border-radius: 16px;
+      line-height: 1.6;
+      font-size: 0.92rem;
+      max-width: 680px;
+    }
+    .msg-row.user .bubble {
+      background: #1a3a5c;
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+    .msg-row.assistant .bubble {
+      background: white;
+      border: 1px solid #dce4ef;
+      border-bottom-left-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    /* Markdown rendering inside assistant bubble */
+    .bubble p   { margin-bottom: 0.6em; }
+    .bubble p:last-child { margin-bottom: 0; }
+    .bubble ul, .bubble ol { margin: 0.4em 0 0.6em 1.4em; }
+    .bubble li  { margin-bottom: 0.3em; }
+    .bubble strong { color: #0d2b4e; }
+    .bubble code { background: #f0f4f9; padding: 1px 5px; border-radius: 3px; font-size: 0.85em; }
+    .bubble h3  { font-size: 0.95rem; margin: 0.8em 0 0.4em; color: #0d2b4e; }
+
+    /* Streaming cursor */
+    .cursor::after {
+      content: "▊";
+      animation: blink 0.8s step-start infinite;
+      color: #2e86c1;
+      font-size: 0.9em;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* ── Tool call indicators ── */
+    .tool-row {
+      display: flex;
+      gap: 10px;
+      max-width: 820px;
+      align-items: flex-start;
+    }
+    .tool-spacer { width: 32px; flex-shrink: 0; }
+
+    .tool-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #eef6ff;
+      border: 1px solid #c0d8f5;
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 0.8rem;
+      color: #1a3a5c;
+    }
+    .tool-badge.done  { background: #edfaf3; border-color: #9ddfc0; color: #1a5c3a; }
+    .tool-badge.error { background: #fff0f0; border-color: #f5c6c6; color: #8b0000; }
+
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid #c0d8f5;
+      border-top-color: #2e86c1;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .tool-icon { font-size: 0.9rem; }
+
+    /* ── Input area ── */
+    .input-area {
+      background: white;
+      border-top: 1px solid #dce4ef;
+      padding: 14px 16px;
+      flex-shrink: 0;
+    }
+    .input-row {
+      display: flex;
+      gap: 10px;
+      max-width: 820px;
+      margin: 0 auto;
+    }
+    #queryInput {
+      flex: 1;
+      padding: 12px 16px;
+      font-size: 0.95rem;
+      border: 1.5px solid #c5d5ed;
+      border-radius: 10px;
+      outline: none;
+      transition: border-color 0.15s;
+      resize: none;
+      line-height: 1.5;
+      font-family: inherit;
+      max-height: 120px;
+    }
+    #queryInput:focus { border-color: #1a3a5c; }
+    #sendBtn {
+      padding: 12px 22px;
+      background: #1a3a5c;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      align-self: flex-end;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    #sendBtn:hover:not(:disabled)  { background: #25527f; }
+    #sendBtn:disabled { background: #7a96b0; cursor: default; }
+
+    .input-hint {
+      text-align: center;
+      font-size: 0.72rem;
+      color: #aaa;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="header-icon">🔬</div>
+  <div class="header-text">
+    <h1>HEAL AI Research Assistant</h1>
+    <p>Powered by Claude · HEAL Data Platform</p>
+  </div>
+  <div class="header-badge">NIH HEAL Initiative</div>
+</header>
+
+<!-- Example question chips -->
+<div class="examples-bar">
+  <span class="examples-label">Try:</span>
+  <span class="chip" onclick="useExample(this)">What concepts are related to opioid use disorder?</span>
+  <span class="chip" onclick="useExample(this)">What studies have collected pain intensity measurements?</span>
+  <span class="chip" onclick="useExample(this)">Find common data elements for measuring depression</span>
+  <span class="chip" onclick="useExample(this)">What variables measure sleep quality in HEAL studies?</span>
+</div>
+
+<!-- Chat messages -->
+<div id="chat">
+  <div class="welcome" id="welcome">
+    <div class="icon">🩺</div>
+    <h2>Ask a research question</h2>
+    <p>I can search across HEAL studies to find concepts, variables, studies, and common data elements. Ask me anything about the HEAL data platform.</p>
+  </div>
+</div>
+
+<!-- Input -->
+<div class="input-area">
+  <div class="input-row">
+    <textarea id="queryInput" rows="1" placeholder="Ask a research question…"></textarea>
+    <button id="sendBtn" onclick="send()">Send</button>
+  </div>
+  <div class="input-hint">Press Enter to send · Shift+Enter for new line</div>
+</div>
+
+<script>
+  const chat      = document.getElementById("chat");
+  const input     = document.getElementById("queryInput");
+  const sendBtn   = document.getElementById("sendBtn");
+
+  // Conversation history — plain {role, content} strings
+  let history = [];
+  let isStreaming = false;
+
+  // Auto-resize textarea
+  input.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 120) + "px";
+  });
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+
+  function useExample(el) {
+    input.value = el.textContent;
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 120) + "px";
+    input.focus();
+  }
+
+  function removeWelcome() {
+    const w = document.getElementById("welcome");
+    if (w) w.remove();
+  }
+
+  function appendUserBubble(text) {
+    removeWelcome();
+    const row = document.createElement("div");
+    row.className = "msg-row user";
+    row.innerHTML = `
+      <div class="avatar">You</div>
+      <div class="bubble">${escHtml(text)}</div>`;
+    chat.appendChild(row);
+    scrollBottom();
+    return row;
+  }
+
+  function appendAssistantBubble() {
+    const row = document.createElement("div");
+    row.className = "msg-row assistant";
+    row.innerHTML = `
+      <div class="avatar">AI</div>
+      <div class="bubble"><span class="cursor" id="stream-text"></span></div>`;
+    chat.appendChild(row);
+    scrollBottom();
+    return row;
+  }
+
+  function appendToolRow(name) {
+    const labels = {
+      search_concepts:  "Searching concepts",
+      search_variables: "Searching variables",
+      search_studies:   "Searching studies",
+      search_cdes:      "Searching CDEs",
+    };
+    const icons = {
+      search_concepts:  "🔬",
+      search_variables: "📊",
+      search_studies:   "📁",
+      search_cdes:      "📋",
+    };
+    const row = document.createElement("div");
+    row.className = "tool-row";
+    const id = "tool-" + Math.random().toString(36).slice(2);
+    row.innerHTML = `
+      <div class="tool-spacer"></div>
+      <div class="tool-badge" id="${id}">
+        <div class="spinner"></div>
+        <span class="tool-icon">${icons[name] || "🔍"}</span>
+        <span>${labels[name] || name}…</span>
+      </div>`;
+    chat.appendChild(row);
+    scrollBottom();
+    return id;
+  }
+
+  function resolveToolRow(id, name, count, isError, errMsg) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const labels = {
+      search_concepts:  "concepts",
+      search_variables: "variables",
+      search_studies:   "studies",
+      search_cdes:      "CDEs",
+    };
+    const icons = {
+      search_concepts:  "🔬",
+      search_variables: "📊",
+      search_studies:   "📁",
+      search_cdes:      "📋",
+    };
+    if (isError) {
+      el.className = "tool-badge error";
+      el.innerHTML = `<span>⚠️</span> <span>${escHtml(errMsg)}</span>`;
+    } else {
+      el.className = "tool-badge done";
+      const countStr = count != null ? ` · ${count} ${labels[name] || "results"}` : "";
+      el.innerHTML = `<span>✓</span> <span class="tool-icon">${icons[name] || "🔍"}</span> <span>Done${countStr}</span>`;
+    }
+  }
+
+  async function send() {
+    const text = input.value.trim();
+    if (!text || isStreaming) return;
+
+    input.value = "";
+    input.style.height = "auto";
+    isStreaming = true;
+    sendBtn.disabled = true;
+
+    appendUserBubble(text);
+    const aRow  = appendAssistantBubble();
+    const span  = aRow.querySelector("#stream-text");
+
+    let accumulated = "";
+    let pendingToolId  = null;
+    let pendingToolName = null;
+
+    try {
+      const res = await fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text, history })
+      });
+
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop();
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          let evt;
+          try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+
+          if (evt.type === "text") {
+            accumulated += evt.content;
+            span.textContent = accumulated;
+            scrollBottom();
+
+          } else if (evt.type === "tool_start") {
+            // Finalise any partial text before showing tool indicator
+            if (accumulated) {
+              span.textContent = accumulated;
+              scrollBottom();
+            }
+            pendingToolName = evt.name;
+            pendingToolId   = appendToolRow(evt.name);
+
+          } else if (evt.type === "tool_done") {
+            if (pendingToolId) {
+              resolveToolRow(pendingToolId, evt.name, evt.count, false, null);
+              pendingToolId   = null;
+              pendingToolName = null;
+            }
+
+          } else if (evt.type === "tool_error") {
+            if (pendingToolId) {
+              resolveToolRow(pendingToolId, evt.name, null, true, evt.error);
+              pendingToolId = null;
+            }
+
+          } else if (evt.type === "done") {
+            // Render markdown for final response
+            span.classList.remove("cursor");
+            if (accumulated) {
+              const bubble = aRow.querySelector(".bubble");
+              bubble.innerHTML = marked.parse(accumulated);
+            }
+            // Save to history
+            history.push({ role: "user",      content: text });
+            history.push({ role: "assistant", content: accumulated });
+
+          } else if (evt.type === "error") {
+            span.classList.remove("cursor");
+            span.textContent = "Error: " + (evt.message || "Something went wrong.");
+          }
+        }
+      }
+    } catch (err) {
+      span.classList.remove("cursor");
+      span.textContent = "Connection error: " + err.message;
+    }
+
+    isStreaming = false;
+    sendBtn.disabled = false;
+    input.focus();
+    scrollBottom();
+  }
+
+  function scrollBottom() {
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+</script>
+</body>
+</html>

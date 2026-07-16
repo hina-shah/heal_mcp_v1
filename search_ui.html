@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HEAL Search</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f7fa;
+      color: #222;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a3a5c;
+      color: white;
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 { font-size: 1.4rem; font-weight: 600; letter-spacing: 0.02em; }
+    header span { font-size: 0.85rem; opacity: 0.7; }
+
+    main { max-width: 960px; margin: 32px auto; padding: 0 16px; }
+
+    .search-box {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .search-box input {
+      flex: 1;
+      padding: 12px 16px;
+      font-size: 1rem;
+      border: 1px solid #ccd2db;
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .search-box input:focus { border-color: #1a3a5c; }
+    .search-box button {
+      padding: 12px 24px;
+      background: #1a3a5c;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .search-box button:hover { background: #25527f; }
+    .search-box button:disabled { background: #7a96b0; cursor: default; }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #dde2ea;
+    }
+    .tab {
+      padding: 8px 18px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      color: #666;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      border-radius: 4px 4px 0 0;
+      transition: color 0.15s;
+    }
+    .tab:hover { color: #1a3a5c; }
+    .tab.active { color: #1a3a5c; font-weight: 600; border-bottom-color: #1a3a5c; }
+
+    .options {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      align-items: center;
+      font-size: 0.88rem;
+      color: #555;
+    }
+    .options label { display: flex; align-items: center; gap: 6px; }
+    .options input[type=number] {
+      width: 64px;
+      padding: 4px 8px;
+      border: 1px solid #ccd2db;
+      border-radius: 4px;
+      font-size: 0.88rem;
+    }
+
+    #status { font-size: 0.88rem; color: #777; margin-bottom: 12px; min-height: 20px; }
+
+    .result-card {
+      background: white;
+      border: 1px solid #dde2ea;
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .result-card .title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #1a3a5c;
+      margin-bottom: 4px;
+    }
+    .result-card .meta {
+      font-size: 0.8rem;
+      color: #888;
+      margin-bottom: 8px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .result-card .meta span {
+      background: #eef2f8;
+      border-radius: 4px;
+      padding: 1px 8px;
+    }
+    .result-card .description {
+      font-size: 0.9rem;
+      color: #444;
+      line-height: 1.55;
+    }
+    .result-card .synonyms {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: #777;
+    }
+
+    .toggle-raw {
+      font-size: 0.78rem;
+      color: #25527f;
+      cursor: pointer;
+      margin-top: 8px;
+      display: inline-block;
+      user-select: none;
+    }
+    .raw-json {
+      display: none;
+      margin-top: 8px;
+      background: #f5f7fa;
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-family: monospace;
+      font-size: 0.78rem;
+      white-space: pre-wrap;
+      overflow-x: auto;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .no-results { text-align: center; color: #888; padding: 40px 0; font-size: 0.95rem; }
+    .error-msg { color: #c0392b; background: #fdf0f0; border: 1px solid #f5c6c6;
+                 border-radius: 8px; padding: 14px 18px; margin-bottom: 16px; font-size: 0.9rem; }
+
+    .pagination {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: center;
+      margin-top: 24px;
+    }
+    .pagination button {
+      padding: 8px 18px;
+      border: 1px solid #ccd2db;
+      border-radius: 6px;
+      background: white;
+      cursor: pointer;
+      font-size: 0.88rem;
+      transition: background 0.15s;
+    }
+    .pagination button:hover:not(:disabled) { background: #eef2f8; }
+    .pagination button:disabled { opacity: 0.4; cursor: default; }
+    .pagination .page-info { font-size: 0.88rem; color: #666; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>HEAL Search</h1>
+  <span>HEAL Data Platform — dev environment</span>
+</header>
+
+<main>
+  <div class="search-box">
+    <input id="queryInput" type="text" placeholder="Search concepts, variables, studies…" autofocus />
+    <button id="searchBtn" onclick="doSearch()">Search</button>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-mode="concepts" onclick="switchTab(this)">Concepts</div>
+    <div class="tab" data-mode="variables" onclick="switchTab(this)">Variables</div>
+    <div class="tab" data-mode="studies" onclick="switchTab(this)">Studies</div>
+    <div class="tab" data-mode="cdes" onclick="switchTab(this)">CDEs</div>
+  </div>
+
+  <div class="options">
+    <label>Results per page:
+      <input type="number" id="pageSize" value="10" min="1" max="100" />
+    </label>
+  </div>
+
+  <div id="status"></div>
+  <div id="results"></div>
+
+  <div class="pagination" id="pagination" style="display:none">
+    <button id="prevBtn" onclick="changePage(-1)">← Prev</button>
+    <span class="page-info" id="pageInfo"></span>
+    <button id="nextBtn" onclick="changePage(1)">Next →</button>
+  </div>
+</main>
+
+<script>
+  const BASE = "https://heal-dev.apps.renci.org/search-api";
+
+  let currentMode = "concepts";
+  let currentOffset = 0;
+  let lastQuery = "";
+
+  // Allow Enter key to trigger search
+  document.getElementById("queryInput").addEventListener("keydown", e => {
+    if (e.key === "Enter") doSearch();
+  });
+
+  function switchTab(el) {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    el.classList.add("active");
+    currentMode = el.dataset.mode;
+    currentOffset = 0;
+    if (lastQuery) doSearch();
+  }
+
+  async function doSearch(keepOffset = false) {
+    const query = document.getElementById("queryInput").value.trim();
+    if (!query) return;
+
+    if (!keepOffset) currentOffset = 0;
+    lastQuery = query;
+
+    const size = parseInt(document.getElementById("pageSize").value) || 10;
+    const btn = document.getElementById("searchBtn");
+    btn.disabled = true;
+    document.getElementById("status").textContent = "Searching…";
+    document.getElementById("results").innerHTML = "";
+    document.getElementById("pagination").style.display = "none";
+
+    try {
+      let endpoint, body;
+
+      if (currentMode === "concepts") {
+        endpoint = "/search";
+        body = { query, offset: currentOffset, size };
+      } else if (currentMode === "variables") {
+        endpoint = "/variables";
+        body = { query, offset: currentOffset, size };
+      } else if (currentMode === "studies") {
+        endpoint = "/studies";
+        body = { query, offset: currentOffset, size };
+      } else if (currentMode === "cdes") {
+        endpoint = "/cdes";
+        body = { query, offset: currentOffset, size };
+      }
+
+      const res = await fetch(BASE + endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text}`);
+      }
+
+      const data = await res.json();
+      renderResults(data, size);
+
+    } catch (err) {
+      document.getElementById("status").textContent = "";
+      document.getElementById("results").innerHTML =
+        `<div class="error-msg">Error: ${escHtml(err.message)}</div>`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function renderResults(data, size) {
+    const container = document.getElementById("results");
+
+    // Normalise — the API wraps results differently per endpoint
+    let items = [];
+    let total = null;
+
+    if (Array.isArray(data)) {
+      items = data;
+    } else if (data.concepts) {
+      items = data.concepts;
+      total = data.total_items ?? null;
+    } else if (data.elements) {
+      items = data.elements;
+      total = data.total_items ?? null;
+    } else if (data.hits) {
+      items = data.hits;
+      total = data.total ?? null;
+    } else if (typeof data === "object") {
+      // Try to find the first array value
+      const firstArr = Object.values(data).find(v => Array.isArray(v));
+      items = firstArr ?? [];
+      total = data.total_items ?? data.total ?? null;
+    }
+
+    const totalStr = total != null ? ` of ${total.toLocaleString()}` : "";
+    document.getElementById("status").textContent =
+      `${items.length}${totalStr} result${items.length !== 1 ? "s" : ""} (offset ${currentOffset})`;
+
+    if (items.length === 0) {
+      container.innerHTML = `<div class="no-results">No results found for "<strong>${escHtml(lastQuery)}</strong>"</div>`;
+      return;
+    }
+
+    container.innerHTML = items.map((item, i) => renderCard(item, i)).join("");
+
+    // Pagination
+    const prevBtn = document.getElementById("prevBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    prevBtn.disabled = currentOffset === 0;
+    nextBtn.disabled = items.length < size;
+    document.getElementById("pageInfo").textContent =
+      `Page ${Math.floor(currentOffset / size) + 1}`;
+    document.getElementById("pagination").style.display = "flex";
+  }
+
+  function renderCard(item, idx) {
+    const name = item.name || item.element_name || item.study_name || item.id || "—";
+    const desc = item.description || item.element_desc || item.study_desc || "";
+    const type = item.type || item.data_type || item.element_type || "";
+    const score = item.score != null ? `score: ${Number(item.score).toFixed(3)}` : "";
+    const id = item.id || item.element_id || "";
+    const synonyms = item.synonyms?.length
+      ? `<div class="synonyms">Synonyms: ${item.synonyms.slice(0,5).map(escHtml).join(", ")}</div>`
+      : "";
+
+    const metaParts = [type, id, score].filter(Boolean).map(s => `<span>${escHtml(String(s))}</span>`).join("");
+
+    return `
+      <div class="result-card">
+        <div class="title">${escHtml(name)}</div>
+        ${metaParts ? `<div class="meta">${metaParts}</div>` : ""}
+        ${desc ? `<div class="description">${escHtml(desc)}</div>` : ""}
+        ${synonyms}
+        <span class="toggle-raw" onclick="toggleRaw(${idx})">▶ raw JSON</span>
+        <pre class="raw-json" id="raw-${idx}">${escHtml(JSON.stringify(item, null, 2))}</pre>
+      </div>`;
+  }
+
+  function toggleRaw(idx) {
+    const el = document.getElementById(`raw-${idx}`);
+    const toggle = el.previousElementSibling;
+    if (el.style.display === "block") {
+      el.style.display = "none";
+      toggle.textContent = "▶ raw JSON";
+    } else {
+      el.style.display = "block";
+      toggle.textContent = "▼ raw JSON";
+    }
+  }
+
+  function changePage(dir) {
+    const size = parseInt(document.getElementById("pageSize").value) || 10;
+    currentOffset = Math.max(0, currentOffset + dir * size);
+    doSearch(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+</script>
+</body>
+</html>
